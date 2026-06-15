@@ -1,0 +1,25 @@
+# Зависимости
+node_modules/
+
+# Сборка
+dist/
+dist-ssr/
+*.tsbuildinfo
+vite.config.d.ts
+vite.config.js
+
+# Окружение
+.env
+.env.local
+*.local
+
+# БД (SQLite)
+*.db
+*.db-journal
+
+# Системное
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.log

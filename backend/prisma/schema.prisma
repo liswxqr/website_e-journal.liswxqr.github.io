@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String  @id @default(cuid())
+  firstName    String
+  lastName     String
+  middleName   String?
+  email        String  @unique
+  passwordHash String
+  role         String // "admin" | "teacher" | "student" (SQLite не поддерживает enum)
+
+  // Студент принадлежит группе
+  groupId String?
+  group   Group?  @relation("GroupStudents", fields: [groupId], references: [id])
+
+  // Преподаватель ведёт предметы
+  taughtSubjects TeacherSubject[]
+
+  // Препод — классный руководитель
+  homeroomOf Group[] @relation("Homeroom")
+
+  // Оценки/посещаемость/расписание (по разным сторонам)
+  gradesAsStudent       Grade[]       @relation("GradeStudent")
+  gradesAsTeacher       Grade[]       @relation("GradeTeacher")
+  assessmentsAsStudent  Assessment[]  @relation("AssessmentStudent")
+  assessmentsAsTeacher  Assessment[]  @relation("AssessmentTeacher")
+  attendanceAsStudent   Attendance[]
+  scheduleAsTeacher     ScheduleEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Subject {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  teachers    TeacherSubject[]
+  grades      Grade[]
+  assessments Assessment[]
+  attendance  Attendance[]
+  schedule    ScheduleEntry[]
+}
+
+model TeacherSubject {
+  teacherId String
+  subjectId String
+
+  teacher User    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([teacherId, subjectId])
+}
+
+model Group {
+  id   String @id @default(cuid())
+  name String @unique // "БП-21"
+  year Int    // курс
+
+  homeroomTeacherId String?
+  homeroomTeacher   User?   @relation("Homeroom", fields: [homeroomTeacherId], references: [id])
+
+  students    User[]         @relation("GroupStudents")
+  grades      Grade[]
+  assessments Assessment[]
+  attendance  Attendance[]
+  schedule    ScheduleEntry[]
+}
+
+// Числовая оценка (1..10)
+model Grade {
+  id        String @id @default(cuid())
+  studentId String
+  subjectId String
+  groupId   String
+  teacherId String
+  date      DateTime
+  value     Int     // 1..10, или -1 для "Н" (не был)
+  comment   String?
+
+  student User    @relation("GradeStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  teacher User    @relation("GradeTeacher", fields: [teacherId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([studentId, subjectId])
+  @@index([groupId, subjectId, date])
+}
+
+// Зачёт / Незачёт
+model Assessment {
+  id        String  @id @default(cuid())
+  studentId String
+  subjectId String
+  groupId   String
+  teacherId String
+  date      DateTime
+  passed    Boolean
+  comment   String?
+
+  student User    @relation("AssessmentStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  teacher User    @relation("AssessmentTeacher", fields: [teacherId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([studentId, subjectId])
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  studentId String
+  subjectId String
+  groupId   String
+  date      DateTime
+  status    String   // present|absent|late|excused
+
+  student User    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, subjectId, date])
+}
+
+model ScheduleEntry {
+  id           String @id @default(cuid())
+  groupId      String
+  subjectId    String
+  teacherId    String
+  dayOfWeek    Int    // 1..6
+  lessonNumber Int    // 1..8
+  room         String?
+
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher User    @relation(fields: [teacherId], references: [id])
+
+  @@unique([groupId, dayOfWeek, lessonNumber])
+}
